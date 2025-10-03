@@ -1,0 +1,12 @@
+# Core dependencies
+streamlit
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+imblearn
+
+# Optional but recommended (for explainability)
+shap
+matplotlib
