@@ -169,60 +169,74 @@ if submitted:
 
     st.markdown("## Real-time Post-op Monitoring & Alerts (Steps 3–5)")
 
-    vitals_json = st.text_area("Paste recent vitals time-series JSON (list of records with timestamp, hr, temp, spo2, ddimer)", height=150)
+   # ---------- Monitoring UI as its own form (recommended) ----------
+import json, os
+from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
+
+ALERT_DIR = "preop_alerts"
+os.makedirs(ALERT_DIR, exist_ok=True)
+
+st.markdown("## Real-time Post-op Monitoring & Alerts (Steps 3–5)")
+
+with st.form("monitor_form"):
+    vitals_json = st.text_area(
+        "Paste recent vitals time-series JSON (list of records with timestamp, hr, temp, spo2, ddimer)",
+        height=150
+    )
     nurse_notes = st.text_area("Nurse notes (free text)", value="", height=100)
+    run_monitor = st.form_submit_button("Run complication detector")
 
-    if st.button("Run complication detector"):
-        try:
-            vitals = json.loads(vitals_json) if vitals_json.strip() else []
-        except Exception as e:
-            st.error(f"Invalid vitals JSON: {e}")
-            vitals = []
+if run_monitor:
+    # parse vitals
+    try:
+        vitals = json.loads(vitals_json) if vitals_json.strip() else []
+    except Exception as e:
+        st.error(f"Invalid vitals JSON: {e}")
+        vitals = []
 
-        # call detector
-        detect_out = detect_complications_from_vitals_and_notes(vitals=vitals, notes=nurse_notes, extra_labs={})
-        st.write("### Detection output")
-        st.json(detect_out)
+    # call detector
+    detect_out = detect_complications_from_vitals_and_notes(vitals=vitals, notes=nurse_notes, extra_labs={})
+    st.write("### Detection output")
+    st.json(detect_out)
 
-        # create alerts for flags meeting severity threshold
-        alerts = []
-        for flag, details in detect_out["flags"].items():
-            if details.get("score", 0) >= 0.5:
-                alert = create_alert(patient_id="demo_patient_001", flag_key=flag, flag_details=details)
-                alerts.append(alert)
-                # persist alert
-                alert_path = os.path.join(ALERT_DIR, f"{alert['alert_id']}.json")
-                with open(alert_path, "w") as f:
-                    json.dump(alert, f, indent=2)
+    # create alerts for flags meeting severity threshold
+    alerts = []
+    for flag, details in detect_out.get("flags", {}).items():
+        if details.get("score", 0) >= 0.5:
+            alert = create_alert(patient_id="demo_patient_001", flag_key=flag, flag_details=details)
+            alerts.append(alert)
+            alert_path = os.path.join(ALERT_DIR, f"{alert['alert_id']}.json")
+            with open(alert_path, "w") as f:
+                json.dump(alert, f, indent=2)
 
-        if alerts:
-            st.success(f"{len(alerts)} alert(s) generated; saved to {ALERT_DIR}")
-            for a in alerts:
-                st.metric(label=f"ALERT — {a['flag'].upper()}", value=a["severity"])
-                st.write("Recommended action:", a["recommended_action"])
-                st.write("Evidence:", a["evidence"])
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Acknowledge {a['alert_id']}"):
-                        st.info(f"Acknowledged {a['alert_id']}")
-                with col2:
-                    if st.button(f"Escalate {a['alert_id']}"):
-                        st.warning(f"Escalated {a['alert_id']} to on-call team (simulation)")
-        else:
-            st.info("No immediate alerts generated.")
+    if alerts:
+        st.success(f"{len(alerts)} alert(s) generated; saved to {ALERT_DIR}")
+        for a in alerts:
+            st.metric(label=f"ALERT — {a['flag'].upper()}", value=a["severity"])
+            st.write("Recommended action:", a["recommended_action"])
+            st.write("Evidence:", a["evidence"])
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Acknowledge {a['alert_id']}"):
+                    st.info(f"Acknowledged {a['alert_id']}")
+            with col2:
+                if st.button(f"Escalate {a['alert_id']}"):
+                    st.warning(f"Escalated {a['alert_id']} to on-call team (simulation)")
+    else:
+        st.info("No immediate alerts generated.")
 
-        # Step 5 — update recovery plan
-        existing_plan = {}
-        updated_plan = update_recovery_plan(existing_plan, detect_out["flags"], risk_output, surgery_type=patient_data.get("surgery", {}).get("type",""))
-        st.write("### Suggested Recovery Plan Updates (Day-wise)")
-        for day, items in sorted(updated_plan.items()):
-            if items:
-                st.write(f"**{day}**")
-                for it in items:
-                    st.markdown(f"- {it}")
+    # Step 5 — update recovery plan
+    existing_plan = {}
+    updated_plan = update_recovery_plan(existing_plan, detect_out.get("flags", {}), risk_output, surgery_type=patient_data.get("surgery", {}).get("type",""))
+    st.write("### Suggested Recovery Plan Updates (Day-wise)")
+    for day, items in sorted(updated_plan.items()):
+        if items:
+            st.write(f"**{day}**")
+            for it in items:
+                st.markdown(f"- {it}")
 
-        if st.button("Save updated recovery plan (simulate)"):
-            save_path = os.path.join(ALERT_DIR, f"recovery_plan_{int(datetime.datetime.utcnow().timestamp())}.json")
-            with open(save_path, "w") as f:
-                json.dump({"patient_id":"demo_patient_001","plan":updated_plan,"detected":detect_out}, f, indent=2)
-            st.success(f"Saved updated plan to {save_path}")
+    if st.button("Save updated recovery plan (simulate)"):
+        save_path = os.path.join(ALERT_DIR, f"recovery_plan_{int(datetime.datetime.utcnow().timestamp())}.json")
+        with open(save_path, "w") as f:
+            json.dump({"patient_id":"demo_patient_001","plan":updated_plan,"detected":detect_out}, f, indent=2)
+        st.success(f"Saved updated plan to {save_path}")
