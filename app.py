@@ -66,3 +66,55 @@ if submitted:
         "Moderate Risk (1)": [round(proba[1], 3)],
         "High Risk (2)": [round(proba[2], 3)]
     })
+    from preop_recommender import load_kb, generate_recommendations
+
+# Load KB once
+KB = load_kb("knowledge_base.json")
+
+# Prepare patient and risk dicts (you can reuse your form variables)
+patient_data = {
+    "demographics": {"age": age, "sex": sex, "bmi": bmi},
+    "comorbidities": {
+        "diabetes": bool(diabetes),
+        "hypertension": bool(hypertension)
+    },
+    "medications": {
+        "warfarin": False,
+        "antiplatelet": False,
+        "insulin": bool(diabetes)
+    },
+    "labs": {"hb": hb, "creatinine": creatinine, "hba1c": None},
+    "lifestyle": {"smoker": bool(smoking), "alcohol_units_week": 0},
+    "surgery": {
+        "type": str(surgery_type).lower(),
+        "subtype": "",
+        "urgency": "emergency" if emergency == 1 else "elective"
+    }
+}
+
+risk_output = {
+    "predicted": ("low" if pred == 0 else "moderate" if pred == 1 else "high"),
+    "domain": "general",
+    "confidence": float(max(proba))
+}
+
+preop_out = generate_recommendations(patient_data, risk_output, KB)
+
+st.markdown("---")
+st.subheader("🩺 Pre-Operative Care Recommendations")
+
+# Show doctor recommendations
+if preop_out["doctor_recommendations_detailed"]:
+    st.write("**Clinician Recommendations:**")
+    for r in preop_out["doctor_recommendations_detailed"]:
+        st.write(f"- {r['text']}")
+        if r["notes"]:
+            st.caption(f"💡 {r['notes']}")
+else:
+    st.info("No clinician recommendations triggered for this patient.")
+
+# Show patient checklist
+if preop_out["patient_checklist"]:
+    st.write("**Patient Checklist:**")
+    for item in preop_out["patient_checklist"]:
+        st.markdown(f"- {item}")
