@@ -66,10 +66,16 @@ if submitted:
         "Moderate Risk (1)": [round(proba[1], 3)],
         "High Risk (2)": [round(proba[2], 3)]
     })
+    # --- Load pre-op recommender ---
+try:
     from preop_recommender import load_kb, generate_recommendations
-
-# Load KB once
-KB = load_kb("knowledge_base.json")
+    print("✅ preop_recommender imported OK")
+    KB = load_kb("knowledge_base.json")
+    print(f"✅ Knowledge base loaded: {len(KB)} rules")
+except Exception as e:
+    st.error("Failed to import or load Pre-Op recommender. Check console logs.")
+    print("❌ Error while importing/loading KB:", e)
+    KB = []
 
 # Prepare patient and risk dicts (you can reuse your form variables)
 patient_data = {
