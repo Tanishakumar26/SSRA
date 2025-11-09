@@ -1,0 +1,545 @@
+[
+  {
+    "id": "universal_npo",
+    "surgery_types": ["all"],
+    "priority": 50,
+    "condition": {},
+    "recommendation_doctor": "Follow institutional NPO guidelines: clear fluids until 2 hours before anesthesia; solids 6–8 hours before anesthesia depending on patient and anesthesia plan. Adjust fasting for infants and those with gastroparesis.",
+    "recommendation_patient": "Do not eat solid food for 6–8 hours and no clear liquids 2 hours before your operation unless told otherwise.",
+    "notes": "Adjust fasting instructions for diabetic patients and infants as per pediatric/anesthesia guidance.",
+    "guideline_ref": "ASA fasting guidelines"
+  },
+  {
+    "id": "pregnancy_test_fcp",
+    "surgery_types": ["all"],
+    "priority": 10,
+    "condition": {
+      "demographics": {"age": {"gt": 12, "lt": 55}},
+      "demographics": {"sex": {"eq": "F"}}
+    },
+    "recommendation_doctor": "Obtain pregnancy test for females of childbearing potential prior to anesthesia unless pregnancy excluded reliably; document LMP.",
+    "recommendation_patient": "If you are of childbearing age, you may be asked to take a pregnancy test before surgery.",
+    "notes": "Essential for teratogenic risk and anesthetic planning.",
+    "guideline_ref": "Local institutional policy"
+  },
+  {
+    "id": "antibiotic_prophylaxis_by_type",
+    "surgery_types": ["general","orthopedic","urology","gynae","thoracic","vascular","plastics"],
+    "priority": 20,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "Administer appropriate prophylactic antibiotic within 60 minutes before incision (agent chosen by procedure and local antibiogram). Redose intra-op if surgery prolonged.",
+    "recommendation_patient": "You will receive an antibiotic just before surgery to lower infection risk—tell staff about any allergies.",
+    "notes": "Select agent based on surgery (e.g., cefazolin for many clean cases; add gram-negative/anaerobic coverage where indicated).",
+    "guideline_ref": "Surgical prophylaxis guidelines (WHO/NICE/local)"
+  },
+  {
+    "id": "dvt_prophylaxis_orthopedic",
+    "surgery_types": ["orthopedic"],
+    "priority": 5,
+    "condition": {},
+    "recommendation_doctor": "Plan mechanical and pharmacologic VTE prophylaxis based on risk (e.g., LMWH, DOACs post-op) and bleeding risk; begin pharmacologic prophylaxis per protocol.",
+    "recommendation_patient": "You may receive injections or wear compression stockings to prevent blood clots after surgery. Inform staff about any previous clots.",
+    "notes": "Total joint arthroplasty requires aggressive thromboprophylaxis.",
+    "guideline_ref": "Orthopedic VTE prophylaxis guidelines"
+  },
+  {
+    "id": "cardiac_optimization_highrisk",
+    "surgery_types": ["cardiac","vascular"],
+    "priority": 2,
+    "condition": {"risk_level": "high"},
+    "recommendation_doctor": "High predicted cardiac risk — arrange cardiology review, ECG, echocardiography as indicated, and optimize heart failure/ischemia therapy before elective surgery.",
+    "recommendation_patient": "Your heart risk is high. You may need extra heart tests and a cardiology visit before operation.",
+    "notes": "Balance urgency against optimization; involve multidisciplinary team.",
+    "guideline_ref": "ACC/AHA perioperative cardiac evaluation"
+  },
+  {
+    "id": "anticoagulant_warfarin_elective",
+    "surgery_types": ["all"],
+    "priority": 3,
+    "condition": {"medication": "warfarin", "urgency": "elective"},
+    "recommendation_doctor": "Consider stopping warfarin ~5 days before elective surgery and check INR pre-op. Assess thrombosis risk and consider peri-op bridging with LMWH per cardiology/hematology guidance.",
+    "recommendation_patient": "Do not take warfarin for several days before surgery unless advised; your team will tell you when to stop.",
+    "notes": "Timeframes may vary; manage urgent cases case-by-case.",
+    "guideline_ref": "Anticoagulation perioperative management guidance"
+  },
+  {
+    "id": "antiplatelet_pci_stent",
+    "surgery_types": ["all"],
+    "priority": 1,
+    "condition": {"medication": "antiplatelet", "comorbidity": "pci_stent"},
+    "recommendation_doctor": "If patient has recent coronary stent, consult cardiology regarding timing and antiplatelet management. Avoid premature cessation of dual antiplatelet therapy without specialist input.",
+    "recommendation_patient": "You are on antiplatelet medicines for a heart stent. Do not stop them without talking to your cardiologist and surgeon.",
+    "notes": "Time since stent and type matter — keep detailed PCI history.",
+    "guideline_ref": "Cardiology stent management consensus"
+  },
+  {
+    "id": "diabetes_periop_and_hba1c",
+    "surgery_types": ["all"],
+    "priority": 4,
+    "condition": {"comorbidity": "diabetes"},
+    "recommendation_doctor": "Create perioperative glycemic plan: hold/adjust oral hypoglycemics per protocol, individualize insulin regimen, monitor glucose frequently and treat hypo/hyperglycemia per guidelines. Consider delaying elective surgery if HbA1c >8.0.",
+    "recommendation_patient": "Follow instructions about diabetes medicines the day before and day of surgery. Bring glucose monitoring supplies.",
+    "notes": "Steroid use may require extra monitoring.",
+    "guideline_ref": "Perioperative diabetes management"
+  },
+  {
+    "id": "anemia_investigate",
+    "surgery_types": ["general","orthopedic","gynae","vascular"],
+    "priority": 6,
+    "condition": {"labs": {"hb": {"lt": 10.0}}, "urgency": "elective"},
+    "recommendation_doctor": "Investigate anemia etiology and treat prior to elective surgery: iron therapy (oral/IV), B12/folate replacement as indicated, or erythropoiesis-stimulating agents where appropriate.",
+    "recommendation_patient": "Your blood count is low. See your doctor for tests/treatment to improve safety before surgery.",
+    "notes": "Optimize to reduce transfusion and infection risk.",
+    "guideline_ref": "Patient blood management recommendations"
+  },
+  {
+    "id": "renal_function_and_contrast",
+    "surgery_types": ["cardiac","vascular","urology","general"],
+    "priority": 7,
+    "condition": {"labs": {"creatinine": {"gt": 1.3}}},
+    "recommendation_doctor": "Assess eGFR, adjust renally cleared drug dosing, avoid nephrotoxins, and plan hydration for contrast studies. Consider nephrology consult for major procedures.",
+    "recommendation_patient": "Your kidney tests will be checked before any scans with contrast; follow hydration instructions.",
+    "notes": "Thresholds depend on eGFR and institutional policy.",
+    "guideline_ref": "Radiology contrast and renal function guidance"
+  },
+  {
+    "id": "obesity_airway_and_osa",
+    "surgery_types": ["all"],
+    "priority": 8,
+    "condition": {"demographics": {"bmi": {"gt": 35.0}}},
+    "recommendation_doctor": "Assess airway and OSA risk (e.g., STOP-BANG); plan for peri-op CPAP availability and respiratory physiotherapy. Consider anesthesia airway plan and postoperative monitoring.",
+    "recommendation_patient": "Your BMI suggests higher risk for breathing issues during anesthesia—your team will check and may advise tests or equipment.",
+    "notes": "Record STOP-BANG if available.",
+    "guideline_ref": "OSA perioperative management guidance"
+  },
+  {
+    "id": "smoking_cessation_elective",
+    "surgery_types": ["general","orthopedic","thoracic","plastics"],
+    "priority": 9,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "Advise smoking cessation ideally 4 weeks before elective surgery; offer nicotine replacement therapy and cessation support.",
+    "recommendation_patient": "Stop smoking as soon as possible before surgery. Ask your doctor about nicotine patches or support programs.",
+    "notes": "Even short-term cessation reduces pulmonary/wound complications.",
+    "guideline_ref": "Smoking cessation perioperative guidance"
+  },
+  {
+    "id": "immunosuppressed_infection_precautions",
+    "surgery_types": ["all"],
+    "priority": 12,
+    "condition": {"comorbidity": "immunosuppressed"},
+    "recommendation_doctor": "Review immunosuppressants (steroids, biologics) and time-to-hold per specialty guidance; optimize vaccination status and infection prevention.",
+    "recommendation_patient": "Tell your doctor about medicines that lower immunity; special precautions may be needed.",
+    "notes": "Coordinate timing of biologics with surgical plan.",
+    "guideline_ref": "Immunosuppression perioperative guidance"
+  },
+  {
+    "id": "pediatric_fasting_and_dosing",
+    "surgery_types": ["all"],
+    "priority": 11,
+    "condition": {"demographics": {"age": {"lt": 18}} },
+    "recommendation_doctor": "Follow pediatric fasting and weight-based dosing protocols; involve pediatric anesthesia and provide caregiver education.",
+    "recommendation_patient": "Caregivers will receive separate pediatric instructions and fasting guidance.",
+    "notes": "Consider prematurity and birth history when relevant.",
+    "guideline_ref": "Pediatric anesthesia guidelines"
+  },
+  {
+    "id": "pregnancy_considerations_obstetric",
+    "surgery_types": ["gynae","obstetric"],
+    "priority": 5,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "For pregnant patients, coordinate with obstetrics and anesthesia; weigh fetal and maternal risks for timing and perioperative monitoring.",
+    "recommendation_patient": "If pregnant or suspect pregnancy, inform your surgical team; specific planning will follow.",
+    "notes": "Some procedures are deferred when possible.",
+    "guideline_ref": "Obstetric perioperative guidance"
+  },
+  {
+    "id": "orthopedic_blood_loss_and_cell_salvage",
+    "surgery_types": ["orthopedic"],
+    "priority": 13,
+    "condition": {},
+    "recommendation_doctor": "Plan for potential major blood loss in joint replacement: type & screen, arrange cell salvage, tranexamic acid and blood conservation strategies.",
+    "recommendation_patient": "Your surgery may involve blood loss—tests and plans will be made to keep you safe.",
+    "notes": "TXA commonly reduces transfusion needs in ortho.",
+    "guideline_ref": "Orthopedic blood management"
+  },
+  {
+    "id": "neuro_coagulopathy_review",
+    "surgery_types": ["neuro"],
+    "priority": 2,
+    "condition": {"surgery_types": ["neuro"], "medication": "anticoagulant"},
+    "recommendation_doctor": "Neurosurgical cases: confirm anticoagulant/antiplatelet status and plan correction or reversal where possible; coordinate with hematology and neurosurgery.",
+    "recommendation_patient": "If you take blood thinners and need brain or spine surgery, specialist coordination is essential.",
+    "notes": "Balance bleeding vs thrombotic risks carefully in neuro ops.",
+    "guideline_ref": "Neurosurgery anticoagulation guidance"
+  },
+  {
+    "id": "ophthalmic_antiplatelet_review",
+    "surgery_types": ["ophthalmic"],
+    "priority": 15,
+    "condition": {"surgery_types": ["ophthalmic"], "urgency": "elective"},
+    "recommendation_doctor": "Discuss antiplatelet/anticoagulant management with ophthalmology; many minor eye procedures permit single antiplatelet but confirm for high-bleeding procedures.",
+    "recommendation_patient": "Bring a list of your medicines; only stop blood thinners if the surgeon tells you to.",
+    "notes": "Risk varies by ophthalmic procedure (cataract vs vitreoretinal).",
+    "guideline_ref": "Ophthalmic perioperative guidance"
+  },
+  {
+    "id": "urology_bowel_and_antibiotic_prep",
+    "surgery_types": ["urology"],
+    "priority": 20,
+    "condition": {"surgery_types": ["urology"], "surgery_types_sub": ["prostate","rectal","transrectal"]},
+    "recommendation_doctor": "For transrectal/rectal urologic procedures consider bowel prep and targeted antibiotics according to urology protocol.",
+    "recommendation_patient": "You may need bowel preparation and antibiotics—follow the surgical team's instructions.",
+    "notes": "Subtypes important for triggering this rule.",
+    "guideline_ref": "Urology surgical prep guidance"
+  },
+  {
+    "id": "gynae_blood_loss_counsel",
+    "surgery_types": ["gynae"],
+    "priority": 18,
+    "condition": {},
+    "recommendation_doctor": "Assess anemia and counsel regarding potential blood loss for gynecologic surgery; consider type & screen and TXA where appropriate.",
+    "recommendation_patient": "If tests show low blood counts, your doctor may recommend treatment before elective gynecological surgery.",
+    "notes": "Discuss fertility-preserving options when relevant.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "thoracic_respiratory_preop",
+    "surgery_types": ["thoracic"],
+    "priority": 16,
+    "condition": {},
+    "recommendation_doctor": "Provide pre-op pulmonary optimization: smoking cessation, chest physiotherapy, and baseline pulmonary function tests if indicated.",
+    "recommendation_patient": "You may be asked to do breathing exercises and stop smoking to reduce lung complications.",
+    "notes": "Aggressive respiratory prep reduces post-op pulmonary complications.",
+    "guideline_ref": "Thoracic surgery prehabilitation guidance"
+  },
+  {
+    "id": "vascular_contrast_planning",
+    "surgery_types": ["vascular"],
+    "priority": 17,
+    "condition": {"surgery_types": ["vascular"], "labs": {"creatinine": {"gt": 1.3}}},
+    "recommendation_doctor": "Consider renal risk with contrast studies; plan hydration, minimize contrast volume, and adjust renally cleared meds.",
+    "recommendation_patient": "If contrast scans are planned, your kidneys will be checked; follow hydration instructions.",
+    "notes": "Coordinate with radiology for renal-protective strategies.",
+    "guideline_ref": "Contrast nephropathy prevention"
+  },
+  {
+    "id": "plastics_stop_smoking_and_glucose",
+    "surgery_types": ["plastics","reconstructive"],
+    "priority": 6,
+    "condition": {"comorbidity": "diabetes"},
+    "recommendation_doctor": "Strict smoking cessation and glycemic optimization required for reconstructive/plastic cases; consider delaying elective cases until optimized.",
+    "recommendation_patient": "Stop smoking and get blood sugar under control to improve healing after reconstructive/plastic surgery.",
+    "notes": "High priority due to wound/flap failure risk.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "dental_clearance_for_prosthetic",
+    "surgery_types": ["cardiac","orthopedic"],
+    "priority": 30,
+    "condition": {"surgery_types": ["cardiac","orthopedic"]},
+    "recommendation_doctor": "Consider dental/oral infection screening and treat dental sepsis before prosthetic implant or cardiac surgery.",
+    "recommendation_patient": "Address any tooth or mouth infections before your scheduled operation.",
+    "notes": "Dental source control reduces prosthetic infection risk.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "prehab_for_major_elective",
+    "surgery_types": ["cardiac","thoracic","orthopedic","vascular"],
+    "priority": 40,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "Consider prehabilitation (exercise, nutrition, smoking cessation) before major elective surgery to reduce complications and length of stay.",
+    "recommendation_patient": "You may be advised to do exercises and follow a nutrition plan to prepare for your operation.",
+    "notes": "Tailor prehab to baseline fitness and comorbidity.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "immunization_status",
+    "surgery_types": ["all"],
+    "priority": 60,
+    "condition": {},
+    "recommendation_doctor": "Review vaccination status (influenza, pneumococcus, COVID where relevant) and optimize as appropriate prior to elective major surgery.",
+    "recommendation_patient": "Ensure routine vaccinations are up to date; discuss with clinician.",
+    "notes": "Timing relative to surgery and immunosuppression required.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "steroid_and_adrenal_suppression",
+    "surgery_types": ["all"],
+    "priority": 22,
+    "condition": {"medication": "steroids"},
+    "recommendation_doctor": "Assess for chronic steroid use and risk of adrenal suppression; give peri-op stress-dose steroids if indicated by endocrinology guidance.",
+    "recommendation_patient": "Tell staff if you take steroids regularly; special steroid cover may be needed.",
+    "notes": "Dose and need depend on duration/dose of steroids.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "mental_health_med_review",
+    "surgery_types": ["all"],
+    "priority": 70,
+    "condition": {"comorbidity": "mental_health"},
+    "recommendation_doctor": "Review psychotropic medications and consult psychiatry as needed; assess peri-op continuation versus hold depending on agent.",
+    "recommendation_patient": "Bring a list of mental health medicines and follow instructions about taking them before surgery.",
+    "notes": "Avoid abrupt cessation of some agents (e.g., benzodiazepines).",
+    "guideline_ref": ""
+  },
+  {
+    "id": "infection_screen_mrsa_mssa",
+    "surgery_types": ["orthopedic","cardiac","plastics","vascular"],
+    "priority": 25,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "Consider MRSA/MSSA screening and decolonization protocols for high-risk procedures (e.g., prosthetic implants).",
+    "recommendation_patient": "You may be screened for nasal or skin bacteria and asked to use antiseptic washes.",
+    "notes": "Follow local infection control policies.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "pregnancy_test_for_childbearing_females",
+    "surgery_types": ["all"],
+    "priority": 11,
+    "condition": {"demographics": {"sex": {"eq": "F"}, "age": {"gt": 12, "lt": 55}}},
+    "recommendation_doctor": "Offer pregnancy testing to females of childbearing potential prior to anesthesia unless reliably not pregnant.",
+    "recommendation_patient": "If you are of childbearing age, you may be asked for a pregnancy test before surgery.",
+    "notes": "Document LMP if available.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "opioid_sparing_multimodal",
+    "surgery_types": ["all"],
+    "priority": 45,
+    "condition": {},
+    "recommendation_doctor": "Plan multimodal analgesia to reduce opioid requirements, and consider regional blocks where appropriate.",
+    "recommendation_patient": "You may be offered different pain control options that reduce reliance on strong opioids.",
+    "notes": "Regional anesthesia may shorten LOS and improve pain control for certain procedures.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "iv_access_for_long_cases",
+    "surgery_types": ["cardiac","thoracic","vascular","neuro"],
+    "priority": 35,
+    "condition": {},
+    "recommendation_doctor": "Ensure adequate IV/central venous access planning for prolonged or complex procedures.",
+    "recommendation_patient": "Your team will plan the best way to give medicines and fluids during the operation.",
+    "notes": "Coordinate with anesthesia for lines and monitoring.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "blood_product_plan_high_loss",
+    "surgery_types": ["cardiac","orthopedic","gynae","vascular","thoracic"],
+    "priority": 14,
+    "condition": {},
+    "recommendation_doctor": "Plan for potential major blood loss: arrange type & screen, crossmatch if indicated, consider cell salvage and blood conservation strategies.",
+    "recommendation_patient": "Your surgery may involve blood loss; tests and plans will be made.",
+    "notes": "Specific plans vary by expected blood loss and institutional protocols.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "dental_infection_screen_ent_oral",
+    "surgery_types": ["ENT","oral","maxillofacial"],
+    "priority": 55,
+    "condition": {},
+    "recommendation_doctor": "Screen and treat dental/oral infections prior to ENT or maxillofacial surgery.",
+    "recommendation_patient": "Address any tooth or mouth infections before the scheduled operation.",
+    "notes": "Dental source control sometimes required for prosthetic/cardiac surgeries.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "covid_and_respiratory_recent_infection",
+    "surgery_types": ["all"],
+    "priority": 90,
+    "condition": {"comorbidity": "recent_covid"},
+    "recommendation_doctor": "Assess timing relative to recent COVID infection and follow current local guidance for delay and respiratory optimization.",
+    "recommendation_patient": "Report recent COVID-19 infection to your surgical team; timing of elective surgery may be adjusted.",
+    "notes": "Use up-to-date institutional guidance.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "pregnancy_caution_certain_anaesthetics",
+    "surgery_types": ["all"],
+    "priority": 12,
+    "condition": {"demographics": {"sex": {"eq": "F"}}},
+    "recommendation_doctor": "Avoid teratogenic drugs in pregnancy where possible and consult obstetrics/anesthesia for necessary procedures.",
+    "recommendation_patient": "If pregnant, certain medications and procedures may be changed to protect the fetus.",
+    "notes": "Coordinate obstetric and anesthesia planning for pregnant surgical patients.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "eye_surgery_bleeding_risk",
+    "surgery_types": ["ophthalmic"],
+    "priority": 21,
+    "condition": {},
+    "recommendation_doctor": "Review antiplatelet/anticoagulant use and bleeding risk by ophthalmic procedure subtype; consult surgeon for high-risk operations.",
+    "recommendation_patient": "Bring a list of medicines to the pre-op visit; follow surgeon's instructions about blood thinners.",
+    "notes": "Cataract operations often tolerate single antiplatelet therapy.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "regional_anesthesia_consideration",
+    "surgery_types": ["orthopedic","plastics","general"],
+    "priority": 24,
+    "condition": {},
+    "recommendation_doctor": "Consider regional anesthesia/nerve blocks when appropriate to reduce postoperative opioid use and improve analgesia.",
+    "recommendation_patient": "You may be offered a regional block to help with pain after surgery.",
+    "notes": "Coordinate with anesthesia for patient suitability.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "transplant_immuno_timing",
+    "surgery_types": ["transplant"],
+    "priority": 2,
+    "condition": {},
+    "recommendation_doctor": "Coordinate timing of immunosuppressive agents and infection prophylaxis with transplant team; involve infectious diseases.",
+    "recommendation_patient": "Transplant patients require special medication planning—discuss with transplant coordinator.",
+    "notes": "High complexity; follow transplant program protocols.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "psychosocial_and_discharge_planning",
+    "surgery_types": ["all"],
+    "priority": 100,
+    "condition": {"urgency": "elective"},
+    "recommendation_doctor": "Assess social support, discharge needs, and arrange rehabilitation or home support preoperatively where indicated.",
+    "recommendation_patient": "Make arrangements for transport and someone to help you at home after the operation.",
+    "notes": "Early discharge planning reduces length of stay and readmissions.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "preop_ecg_and_baseline_tests_age_threshold",
+    "surgery_types": ["all"],
+    "priority": 32,
+    "condition": {"demographics": {"age": {"gt": 50}}, "urgency": "elective"},
+    "recommendation_doctor": "Consider baseline ECG and labs for patients >50 years planned for surgery; tailor further testing to comorbidities and procedural risk.",
+    "recommendation_patient": "You may need blood tests and an ECG before the operation because of your age or medical history.",
+    "notes": "Adjust age thresholds per institutional policy.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "malnutrition_screen_and_dietitian",
+    "surgery_types": ["all"],
+    "priority": 28,
+    "condition": {"comorbidity": "malnutrition", "urgency": "elective"},
+    "recommendation_doctor": "Assess nutritional status and consider dietitian referral and supplementation to reduce wound complications and improve recovery.",
+    "recommendation_patient": "You may be asked to follow a nutrition plan or take supplements before the operation.",
+    "notes": "Include recent weight loss data when possible.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "analgesia_plan_chronic_opioid",
+    "surgery_types": ["all"],
+    "priority": 46,
+    "condition": {"medication": "chronic_opioid"},
+    "recommendation_doctor": "Develop an individualized peri-op analgesia plan for chronic opioid users including multimodal strategies and pain service input.",
+    "recommendation_patient": "Bring a list of your pain medicines; pain control plans may change around surgery.",
+    "notes": "Avoid abrupt opioid cessation; coordinate with pain management.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "IV_and_central_line_planning",
+    "surgery_types": ["cardiac","thoracic","vascular","neuro"],
+    "priority": 36,
+    "condition": {},
+    "recommendation_doctor": "Plan for central venous/arterial access where prolonged hemodynamic monitoring or vasoactive therapy anticipated.",
+    "recommendation_patient": "Your team will plan the best way to give medicines and fluids during the operation.",
+    "notes": "Coordinate lines with anesthesia and surgical teams.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "preop_skin_prep_and_site_marking",
+    "surgery_types": ["all"],
+    "priority": 120,
+    "condition": {},
+    "recommendation_doctor": "Ensure surgical site marking and pre-op skin antisepsis. Document allergies to antiseptic agents (chlorhexidine, iodine).",
+    "recommendation_patient": "You will have the operation site marked and may be asked to use antiseptic washes before surgery.",
+    "notes": "WHO Surgical Safety Checklist item.",
+    "guideline_ref": "WHO Surgical Safety Checklist"
+  },
+  {
+    "id": "urinary_catheter_and_antibiotic_policy_urology",
+    "surgery_types": ["urology"],
+    "priority": 44,
+    "condition": {},
+    "recommendation_doctor": "Follow urology-specific protocols for peri-op catheter use and targeted antibiotic prophylaxis for transurethral/transrectal procedures.",
+    "recommendation_patient": "You may need catheter guidance and antibiotics as advised by the urology team.",
+    "notes": "Minimize catheter days to reduce CAUTI risk.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "heparin_bridge_consideration",
+    "surgery_types": ["vascular","cardiac","orthopedic"],
+    "priority": 7,
+    "condition": {"medication": "warfarin"},
+    "recommendation_doctor": "Assess thrombotic risk and plan bridging with LMWH for high-risk patients when warfarin is stopped prior to surgery per hematology/cardiology advice.",
+    "recommendation_patient": "If you need temporary blood thinner changes, your doctor will advise on injections or alternative plans.",
+    "notes": "Bridging decisions individualized.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "spine_neuro_position_and_airway",
+    "surgery_types": ["neuro","orthopedic"],
+    "priority": 26,
+    "condition": {},
+    "recommendation_doctor": "Assess airway and positioning needs for spine/neurosurgery; plan for potential neurological monitoring requirements.",
+    "recommendation_patient": "Positioning and airway concerns will be discussed by the anesthesia and surgical teams.",
+    "notes": "Positioning affects airway and monitoring.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "antibiotic_prophylaxis_cardiac_valve",
+    "surgery_types": ["cardiac"],
+    "priority": 19,
+    "condition": {},
+    "recommendation_doctor": "Cardiac surgical prophylaxis per cardiac surgical program (broad spectrum coverage, serial dosing during long procedures).",
+    "recommendation_patient": "You will receive antibiotics before heart surgery to reduce infection risk.",
+    "notes": "Follow cardiac surgery infection prevention bundle.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "elective_delay_for_active_infection",
+    "surgery_types": ["all"],
+    "priority": 9,
+    "condition": {"comorbidity": "active_infection"},
+    "recommendation_doctor": "Postpone elective surgery until active infections are resolved or controlled. For urgent cases stabilize infection and proceed with precautions.",
+    "recommendation_patient": "If you have a fever, cough, or infection, inform your surgical team; surgery may be delayed.",
+    "notes": "Balance urgency and infection control measures.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "transfusion_thresholds_and_type_screen",
+    "surgery_types": ["cardiac","orthopedic","vascular","thoracic","gynae"],
+    "priority": 29,
+    "condition": {},
+    "recommendation_doctor": "Arrange type & screen/crossmatch based on expected blood loss and institutional transfusion thresholds; plan cell salvage where indicated.",
+    "recommendation_patient": "Blood tests will be done to prepare for possible transfusion if needed.",
+    "notes": "Individualize transfusion thresholds.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "preop_ecg_and_echo_if_indicated",
+    "surgery_types": ["cardiac","vascular","thoracic"],
+    "priority": 31,
+    "condition": {"risk_level": "moderate"},
+    "recommendation_doctor": "Consider ECG and echocardiography as clinically indicated for patients with cardiac symptoms or moderate/high risk profiles.",
+    "recommendation_patient": "You may need extra heart tests before the operation based on clinical assessment.",
+    "notes": "Tests guided by symptoms and risk scores.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "postop_icu_plan_for_major",
+    "surgery_types": ["cardiac","thoracic","major_vascular"],
+    "priority": 33,
+    "condition": {},
+    "recommendation_doctor": "Plan postoperative level of care (ICU/HDU/ward) prior to major procedures; coordinate bed availability and handover.",
+    "recommendation_patient": "Your recovery location (ICU or ward) will be planned and explained before surgery.",
+    "notes": "Advance planning reduces delays and improves handover.",
+    "guideline_ref": ""
+  },
+  {
+    "id": "remove_nonessential_meds_preop",
+    "surgery_types": ["all"],
+    "priority": 80,
+    "condition": {},
+    "recommendation_doctor": "Review and advise on continuation/holding nonessential medications (e.g., metformin may be stopped the day of surgery for contrast risk depending on policy).",
+    "recommendation_patient": "Bring a full list of medicines; the team will tell you which to take the day before and day of surgery.",
+    "notes": "Follow local medication policies (e.g., metformin, ACE inhibitors).",
+    "guideline_ref": ""
+  }
+]
