@@ -196,8 +196,40 @@ if run_monitor:
 
     # call detector
     detect_out = detect_complications_from_vitals_and_notes(vitals=vitals, notes=nurse_notes, extra_labs={})
-    st.write("### Detection output")
-    st.json(detect_out)
+  # --- Clean, clinician-facing output ---
+flags = detect_out.get("flags", {})
+summary = detect_out.get("summary", "No summary available")
+
+st.markdown("### 🩺 Monitoring Summary")
+
+if not flags:
+    st.success("✅ No complications detected. Continue routine monitoring.")
+else:
+    # Count the number of triggered complications
+    st.warning(f"⚠️ {len(flags)} potential complication(s) detected. Review required.")
+    for flag, details in flags.items():
+        sev = details.get("severity", "moderate").capitalize()
+        action = details.get("recommended_action", "Review patient condition.")
+        evidence = details.get("evidence", [])
+        st.markdown(f"**{flag.upper()} ({sev})** — {action}")
+        if evidence:
+            with st.expander("View supporting evidence"):
+                for e in evidence:
+                    st.write(f"• {e}")
+                    # Suggested next steps
+if not flags:
+    st.info("Continue with standard post-op care. No alerts at this time.")
+else:
+    st.markdown("### 🧾 Recommended Actions")
+    for flag, details in flags.items():
+        if "infection" in flag:
+            st.write("- Start empirical antibiotics and send wound swab for culture.")
+        elif "dvt" in flag:
+            st.write("- Perform venous Doppler and initiate DVT prophylaxis.")
+        elif "respiratory" in flag:
+            st.write("- Start oxygen support and chest physiotherapy.")
+        elif "bleeding" in flag:
+            st.write("- Assess surgical site and order hemoglobin test.")
 
     # create alerts for flags meeting severity threshold
     alerts = []
