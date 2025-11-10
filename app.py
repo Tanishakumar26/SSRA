@@ -161,10 +161,11 @@ if submitted:
             st.markdown(f"- {item}")
 
    # ---------- Streamlit monitoring UI: Step 3/4/5 ----------
+# ---------- Streamlit monitoring UI: Step 3/4/5 (REPLACE ENTIRE MONITORING BLOCK WITH THIS) ----------
 import json
 import os
-import datetime
 import re
+import datetime
 from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
 
 ALERT_DIR = "preop_alerts"
@@ -175,13 +176,13 @@ st.markdown("## Real-time Post-op Monitoring & Alerts (Steps 3–5)")
 # Monitoring form (separate from patient_form)
 with st.form("monitor_form"):
     vitals_json = st.text_area(
-        "Paste recent vitals time-series JSON (list of records with timestamp, hr, temp, spo2, ddimer) OR paste free text like 'HR 105, Temp 100.8°F, D-dimer 1.2'",
+        "Paste recent vitals time-series JSON (list of records with timestamp, hr, temp, spo2, ddimer) OR paste free text like 'HR 105, Temp 100.8, D-dimer 1.2'",
         height=150
     )
     nurse_notes = st.text_area("Nurse notes (free text)", value="", height=100)
     run_monitor = st.form_submit_button("Run complication detector")
 
-def parse_vitals_input(text: str):
+def _parse_vitals_input(text: str):
     """
     Try to parse vitals JSON; if not JSON, extract key values from free text using regex.
     Returns a list of vitals dicts or empty list.
@@ -190,7 +191,6 @@ def parse_vitals_input(text: str):
         return []
     try:
         parsed = json.loads(text)
-        # ensure it's a list
         if isinstance(parsed, dict):
             return [parsed]
         if isinstance(parsed, list):
@@ -217,7 +217,7 @@ def parse_vitals_input(text: str):
 if run_monitor:
     try:
         # parse vitals input (JSON or free text)
-        vitals = parse_vitals_input(vitals_json)
+        vitals = _parse_vitals_input(vitals_json)
 
         # call detector
         detect_out = detect_complications_from_vitals_and_notes(
@@ -226,40 +226,7 @@ if run_monitor:
             extra_labs={}
         )
 
-        # --- Simplified clinician UI (no raw JSON) ---
-        st.markdown("### 🩺 Monitoring Summary")
-        flags = detect_out.get("flags", {})
-        # If no flags, show success
-        if not flags:
-            st.success("✅ No complications detected. Continue routine monitoring.")
-            st.info("Continue with standard post-op care. No alerts at this time.")
-        else:
-            st.warning(f"⚠️ {len(flags)} potential complication(s) detected. Review required.")
-            for flag, details in flags.items():
-                sev = details.get("severity", "moderate").capitalize()
-                action = details.get("recommended_action", "Review patient condition.")
-                evidence = details.get("evidence", [])
-                st.markdown(f"**{flag.upper()} ({sev})** — {action}")
-                if evidence:
-                    with st.expander("💡 View supporting evidence"):
-                        for e in evidence:
-                            st.write(f"• {e}")
-
-            # Recommended actions summary (concise)
-            st.markdown("### 🧾 Recommended Actions")
-            for flag in flags.keys():
-                if "infection" in flag:
-                    st.write("- Start empirical antibiotics and send wound swab for culture.")
-                elif "dvt" in flag:
-                    st.write("- Perform venous Doppler and initiate DVT prophylaxis.")
-                elif "respiratory" in flag:
-                    st.write("- Start oxygen support and chest physiotherapy.")
-                elif "bleeding" in flag:
-                    st.write("- Assess surgical site and order hemoglobin test.")
-                else:
-                    st.write(f"- Review: {flag}")
-
-        # create alerts for flags meeting severity threshold and persist
+        # build alerts list and persist to disk
         alerts = []
         for flag, details in detect_out.get("flags", {}).items():
             if details.get("score", 0) >= 0.5:
@@ -269,29 +236,66 @@ if run_monitor:
                 with open(alert_path, "w", encoding="utf-8") as f:
                     json.dump(alert, f, indent=2)
 
+        # --- Simplified clinician UI (no raw JSON, no interactive ack/escalate buttons) ---
+        st.markdown("### 🩺 Monitoring Summary")
+        flags = detect_out.get("flags", {})
+
+        if not flags:
+            st.success("✅ No complications detected. Continue routine monitoring.")
+            st.info("Continue with standard post-op care. No alerts at this time.")
+        else:
+            st.warning(f"⚠️ {len(flags)} potential complication(s) detected. Review required.")
+            for flag, details in flags.items():
+                sev = details.get("severity", "moderate").capitalize()
+                action_text = details.get("recommended_action", "Review patient condition.")
+                evidence = details.get("evidence", [])
+                st.markdown(f"**{flag.upper()} ({sev})** — {action_text}")
+                if evidence:
+                    with st.expander("💡 View supporting evidence"):
+                        for e in evidence:
+                            st.write(f"• {e}")
+
+        # show persisted alerts summary (compact)
         if alerts:
             st.success(f"{len(alerts)} alert(s) generated; saved to {ALERT_DIR}")
             for a in alerts:
                 st.metric(label=f"ALERT — {a['flag'].upper()}", value=a.get("severity", ""))
-                st.write("Recommended action:", a.get("recommended_action", "See evidence"))
-                # show evidence in expander
+                st.write(a.get("recommended_action", "See evidence"))
                 with st.expander(f"Evidence for {a['flag']}"):
-                    for e in a.get("evidence", []):
-                        st.write(f"• {e}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Acknowledge {a['alert_id']}", key=f"ack_{a['alert_id']}"):
-                        st.info(f"Acknowledged {a['alert_id']}")
-                with col2:
-                    if st.button(f"Escalate {a['alert_id']}", key=f"esc_{a['alert_id']}"):
-                        st.warning(f"Escalated {a['alert_id']} to on-call team (simulation)")
-        else:
-            # no alerts persisted
-            pass
+                    for ev in a.get("evidence", []):
+                        st.write(f"• {ev}")
+                st.caption(f"Alert ID: {a['alert_id']} — generated at {a.get('timestamp')}")
 
-        # Step 5 — update recovery plan (concise day-wise output)
-        existing_plan = {}  # load real plan in production
-        updated_plan = update_recovery_plan(existing_plan, detect_out.get("flags", {}), risk_output, surgery_type=patient_data.get("surgery", {}).get("type",""))
+        # ---- Defensive risk_output fallback (avoid NameError) ----
+        if 'risk_output' not in locals() and 'risk_output' not in globals():
+            try:
+                if 'pred' in locals():
+                    _pred_label = "low" if int(pred) == 0 else ("moderate" if int(pred) == 1 else "high")
+                elif 'proba' in locals():
+                    try:
+                        import numpy as _np
+                        _pred_label = "low" if int(_np.argmax(proba)) == 0 else ("moderate" if int(_np.argmax(proba)) == 1 else "high")
+                    except Exception:
+                        _pred_label = "low"
+                else:
+                    _pred_label = "low"
+                risk_output = {
+                    "predicted": _pred_label,
+                    "domain": "general",
+                    "confidence": float(max(proba)) if 'proba' in locals() else 0.0
+                }
+            except Exception:
+                risk_output = {"predicted": "low", "domain": "general", "confidence": 0.0}
+
+        # ---- Update recovery plan using detected flags ----
+        existing_plan = {}  # in production load current care plan for the patient
+        try:
+            updated_plan = update_recovery_plan(existing_plan, detect_out.get("flags", {}), risk_output, surgery_type=patient_data.get("surgery", {}).get("type", ""))
+        except Exception as e:
+            st.error(f"Error updating recovery plan: {e}")
+            print("update_recovery_plan error:", e)
+            updated_plan = {}
+
         if updated_plan:
             st.write("### Suggested Recovery Plan Updates (Day-wise)")
             for day, items in sorted(updated_plan.items()):
@@ -300,12 +304,13 @@ if run_monitor:
                     for it in items:
                         st.markdown(f"- {it}")
 
+            # Save option (clinician chooses to persist)
             if st.button("Save updated recovery plan (simulate)"):
                 save_path = os.path.join(ALERT_DIR, f"recovery_plan_{int(datetime.datetime.utcnow().timestamp())}.json")
                 with open(save_path, "w", encoding="utf-8") as f:
                     json.dump({"patient_id":"demo_patient_001","plan":updated_plan,"detected":detect_out}, f, indent=2)
                 st.success(f"Saved updated plan to {save_path}")
+
     except Exception as e:
         st.error(f"⚠️ Error while running detector: {e}")
-        # and log server-side
         print("Detector error:", e)
