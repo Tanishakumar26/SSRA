@@ -9,10 +9,14 @@ import re
 import datetime
 from typing import Dict, Any, List
 
-# Local modules (postop_monitoring must exist in repo)
+# Local modules (make sure postop_monitoring.py and preop_recommender.py exist in repo)
 from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
 
-# ---------------- Patient DB helpers & Dashboard UI (defined early) ----------------
+# ---------------- App config ----------------
+st.set_page_config(page_title="SSRA — Surgical Risk & Preop", layout="wide")
+st.title("🩺 SSRA - Surgical Risk Prediction & Pre-op Recommendations")
+
+# ---------------- Patient DB helpers & Dashboard UI ----------------
 PATIENT_DB_PATH = "patients_db.json"
 os.makedirs(os.path.dirname(PATIENT_DB_PATH) or ".", exist_ok=True)
 
@@ -30,7 +34,7 @@ def save_patient_db(db: List[Dict[str,Any]]):
         json.dump(db, f, indent=2, default=str)
 
 def make_patient_id() -> str:
-    stamp = int(datetime.datetime.utcnow().timestamp())
+    stamp = int(datetime.datetime.utcnow().timestamp() * 1000)  # ms to reduce collision chance
     return f"patient_{stamp}"
 
 def add_patient_record(patient_id: str,
@@ -110,8 +114,11 @@ def patient_dashboard_ui():
     for r in db_sorted:
         c1, c2, c3 = st.columns([2,1,1])
         with c1:
+            # clicking patient sets selected patient and reruns so app picks it up downstream
             if st.button(r["patient_id"], key=f"open_{r['patient_id']}"):
                 st.session_state["_selected_patient"] = r["patient_id"]
+                st.session_state["last_patient_id"] = r["patient_id"]
+                st.experimental_rerun()
         with c2:
             st.write(r.get("created_at", ""))
         with c3:
@@ -182,16 +189,15 @@ def patient_dashboard_ui():
         mime="application/json"
     )
 
-# ---------------- App config and session_state init ----------------
-st.set_page_config(page_title="SSRA — Surgical Risk & Preop", layout="wide")
-st.title("🩺 SSRA - Surgical Risk Prediction & Pre-op Recommendations")
-
+# ---------------- session_state init ----------------
 if "patient_data" not in st.session_state:
     st.session_state["patient_data"] = None
 if "risk_output" not in st.session_state:
     st.session_state["risk_output"] = None
 if "last_patient_id" not in st.session_state:
     st.session_state["last_patient_id"] = None
+if "_selected_patient" not in st.session_state:
+    st.session_state["_selected_patient"] = None
 
 # Optional: sidebar toggle to show dashboard
 if st.sidebar.checkbox("Show Patient Dashboard"):
@@ -359,9 +365,13 @@ if submitted:
         for item in preop_out["patient_checklist"]:
             st.markdown(f"- {item}")
 
-    # Persist this patient event to DB
-    patient_id = st.session_state.get("last_patient_id") or make_patient_id()
+    # Persist this patient event to DB — create a NEW patient id for each Predict Risk run
+    patient_id = make_patient_id()
+    # remember last created id (useful if user immediately goes to monitoring)
     st.session_state["last_patient_id"] = patient_id
+    # select this new patient in dashboard
+    st.session_state["_selected_patient"] = patient_id
+
     try:
         add_patient_record(patient_id=patient_id,
                            patient_data=patient_data,
@@ -541,7 +551,11 @@ if run_monitor:
 
         # ---- Ensure we have a patient_id and append monitoring event to DB ----
         try:
-            patient_id = st.session_state.get("last_patient_id") or make_patient_id()
+            patient_id = (
+                st.session_state.get("_selected_patient")
+                or st.session_state.get("last_patient_id")
+                or make_patient_id()
+            )
             st.session_state["last_patient_id"] = patient_id
         except Exception as e:
             print("Warning: could not read/write session_state last_patient_id:", e)
