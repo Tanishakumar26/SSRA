@@ -158,10 +158,10 @@ def patient_view_ui(patient_id: str):
         file_name=f"{patient_rec['patient_id']}.json",
         mime="application/json"
     )
-
 def patient_dashboard_ui():
     """
     Clean dashboard with search/filter and "Create new patient" button.
+    Compatible with both old (experimental_rerun) and new (rerun) Streamlit.
     """
     st.markdown("---")
     st.header("📋 Patient Dashboard")
@@ -186,12 +186,15 @@ def patient_dashboard_ui():
             }
             skeleton_risk_output = {"predicted": "unknown", "domain": "general", "confidence": 0.0}
             try:
-                add_patient_record(patient_id=pid, patient_data=skeleton_patient_data, risk_output=skeleton_risk_output, preop_out={}, alerts=[], recovery_plan={})
+                add_patient_record(patient_id=pid, patient_data=skeleton_patient_data, risk_output=skeleton_risk_output)
                 st.success(f"Created patient: {pid}")
                 st.session_state["_selected_patient"] = pid
                 st.session_state["last_patient_id"] = pid
-                # re-run so that selection opens
-                st.experimental_rerun()
+                # rerun for new Streamlit versions
+                try:
+                    st.rerun()
+                except AttributeError:
+                    st.experimental_rerun()
             except Exception as e:
                 st.error(f"Failed to create patient: {e}")
                 return
@@ -244,7 +247,10 @@ def patient_dashboard_ui():
             if st.button(display_text, key=f"open_{r['patient_id']}"):
                 st.session_state["_selected_patient"] = r["patient_id"]
                 st.session_state["last_patient_id"] = r["patient_id"]
-                st.experimental_rerun()
+                try:
+                    st.rerun()
+                except AttributeError:
+                    st.experimental_rerun()
         with c2:
             c2.write(r.get("created_at", ""))
         with c3:
