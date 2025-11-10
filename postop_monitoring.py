@@ -1,4 +1,4 @@
-# postop_monitoring.py
+# postop_monitoring.py (patched)
 from typing import Dict, List, Any, Tuple
 import datetime
 import re
@@ -16,6 +16,9 @@ COMPLICATION_KEYWORDS = {
     "sepsis": ["fever", "hypotension", "tachycardia", "confused", "lethargy"]
 }
 
+# negation terms for simple negation detection
+NEGATION_TERMS = ["no", "not", "denies", "without", "rule out", "ruled out", "negative for", "no evidence of"]
+
 # thresholds (tunable)
 THRESHOLDS = {
     "fever_temp": 38.0,        # degrees Celsius
@@ -24,30 +27,90 @@ THRESHOLDS = {
     "elevated_ddimer": 0.5     # units depend on lab; set as example
 }
 
+# ---------- Timestamp helper ----------
+def _parse_timestamp(value) -> datetime.datetime:
+    """
+    Convert timestamp value to datetime.datetime.
+    Accepts:
+      - datetime.datetime -> returned unchanged
+      - ISO-format string -> parsed
+      - 'manual_entry' or any unknown string -> returns now()
+    """
+    if value is None:
+        return datetime.datetime.utcnow()
+    if isinstance(value, datetime.datetime):
+        return value
+    if isinstance(value, (int, float)):
+        # assume epoch seconds
+        try:
+            return datetime.datetime.utcfromtimestamp(float(value))
+        except Exception:
+            return datetime.datetime.utcnow()
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return datetime.datetime.utcnow()
+        if s.lower() == "manual_entry":
+            return datetime.datetime.utcnow()
+        # try ISO parse
+        try:
+            return datetime.datetime.fromisoformat(s)
+        except Exception:
+            # try common formats
+            fmts = [
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+                "%d-%m-%Y %H:%M:%S",
+                "%d/%m/%Y %H:%M:%S",
+            ]
+            for f in fmts:
+                try:
+                    return datetime.datetime.strptime(s, f)
+                except Exception:
+                    pass
+            # fallback to now
+            return datetime.datetime.utcnow()
+    # other types: fallback
+    return datetime.datetime.utcnow()
+
 # ---------- Time-series helper ----------
 def compute_recent_stats(vitals: List[Dict[str,Any]], window_minutes: int = 60) -> Dict[str,Any]:
     """
-    vitals: list of dicts: {"timestamp": iso, "hr": int, "temp": float, "spo2": int, "ddimer": float (opt)}
+    vitals: list of dicts: {"timestamp": iso-or-datetime-or-manual, "hr": int, "temp": float, "spo2": int, "ddimer": float (opt)}
     returns simple aggregates over last window_minutes (max, mean, last)
+    Robust to string timestamps and 'manual_entry' sentinel.
     """
     now = datetime.datetime.utcnow()
     window = datetime.timedelta(minutes=window_minutes)
     vals = {"hr": [], "temp": [], "spo2": [], "ddimer": []}
-    for rec in vitals:
+    for rec in vitals or []:
         try:
-            t = datetime.datetime.fromisoformat(rec["timestamp"])
+            raw_ts = rec.get("timestamp")
+            t = _parse_timestamp(raw_ts)
         except Exception:
-            # assume rec["timestamp"] already datetime
-            t = rec["timestamp"]
+            t = datetime.datetime.utcnow()
+        # only include records within window
         if now - t <= window:
             if rec.get("hr") is not None:
-                vals["hr"].append(rec.get("hr"))
+                try:
+                    vals["hr"].append(float(rec.get("hr")))
+                except Exception:
+                    pass
             if rec.get("temp") is not None:
-                vals["temp"].append(rec.get("temp"))
+                try:
+                    vals["temp"].append(float(rec.get("temp")))
+                except Exception:
+                    pass
             if rec.get("spo2") is not None:
-                vals["spo2"].append(rec.get("spo2"))
+                try:
+                    vals["spo2"].append(float(rec.get("spo2")))
+                except Exception:
+                    pass
             if rec.get("ddimer") is not None:
-                vals["ddimer"].append(rec.get("ddimer"))
+                try:
+                    vals["ddimer"].append(float(rec.get("ddimer")))
+                except Exception:
+                    pass
     agg = {}
     for k, arr in vals.items():
         if arr:
@@ -60,21 +123,45 @@ def compute_recent_stats(vitals: List[Dict[str,Any]], window_minutes: int = 60) 
             agg[f"{k}_mean"] = None
     return agg
 
-# ---------- Simple NLP for nurse notes ----------
+# ---------- Negation-aware NLP for nurse notes ----------
+def _is_negated(context_text: str, keyword: str, window_chars: int = 50) -> bool:
+    """
+    Simple heuristic: look for negation terms within `window_chars` before the keyword.
+    Returns True if likely negated.
+    """
+    if not context_text:
+        return False
+    text = context_text.lower()
+    kw = keyword.lower()
+    idx = text.find(kw)
+    if idx == -1:
+        return False
+    start = max(0, idx - window_chars)
+    context = text[start:idx]
+    for neg in NEGATION_TERMS:
+        if neg in context:
+            return True
+    return False
+
 def extract_keywords_from_notes(notes: str) -> Dict[str,int]:
     """
-    returns counts for each complication keyword bucket
+    returns counts for each complication keyword bucket, but ignores matches that appear negated.
     """
     if not notes:
         return {}
     text = notes.lower()
-    hits = {}
+    hits: Dict[str,int] = {}
     for comp, keywords in COMPLICATION_KEYWORDS.items():
         count = 0
         for kw in keywords:
-            # simple phrase search
-            if kw in text:
-                count += len(re.findall(re.escape(kw), text))
+            # find all non-overlapping occurrences
+            for m in re.finditer(re.escape(kw.lower()), text):
+                # check negation in left context
+                start = max(0, m.start() - 60)
+                context = text[start:m.start()]
+                negated = any(neg in context for neg in NEGATION_TERMS)
+                if not negated:
+                    count += 1
         if count:
             hits[comp] = count
     return hits
@@ -87,35 +174,68 @@ def detect_complications_from_vitals_and_notes(vitals: List[Dict[str,Any]], note
         "flags": {"dvt": {"score":0.8, "evidence":[...], "severity":"moderate"}, ...},
         "summary": "DVT suspected based on D-dimer + unilateral leg swelling"
       }
+    Robust to string timestamps (e.g., "manual_entry") and missing fields.
     """
     agg = compute_recent_stats(vitals, window_minutes=180)  # 3-hour window by default
     kw_hits = extract_keywords_from_notes(notes)
-    flags = {}
+    flags: Dict[str,Any] = {}
+
     # DVT heuristic: nurse note keyword OR elevated d-dimer OR unilateral swelling mention + calf pain + HR change
     dvt_score = 0.0
-    evidence = []
-    dd = (extra_labs or {}).get("ddimer") or agg.get("ddimer_last")
-    if dd is not None and dd > THRESHOLDS["elevated_ddimer"]:
-        dvt_score += 0.5
-        evidence.append(f"d-dimer {dd} > {THRESHOLDS['elevated_ddimer']}")
-    if "dvt" in kw_hits or "swelling" in kw_hits:
+    evidence: List[str] = []
+    dd = None
+    if extra_labs:
+        dd = extra_labs.get("ddimer")
+    if dd is None:
+        # fall back to aggregated last ddimer
+        dd = agg.get("ddimer_last")
+    try:
+        if dd is not None and dd > THRESHOLDS["elevated_ddimer"]:
+            dvt_score += 0.5
+            evidence.append(f"d-dimer {dd} > {THRESHOLDS['elevated_ddimer']}")
+    except Exception:
+        pass
+
+    # keyword hits for DVT include explicit dvt bucket or generic swelling keywords
+    if "dvt" in kw_hits:
         dvt_score += 0.4
-        evidence.append("nurse note mentions swelling / DVT keywords")
-    if agg.get("hr_last") is not None and agg["hr_last"] > THRESHOLDS["tachycardia_hr"]:
-        dvt_score += 0.05
-        evidence.append(f"HR {agg['hr_last']} > {THRESHOLDS['tachycardia_hr']}")
+        evidence.append("nurse note mentions DVT-specific keywords")
+    else:
+        # check swelling-related buckets that might not be under 'dvt' label
+        if any(k in kw_hits for k in ["dvt"]) is False and ("dvt" not in kw_hits):
+            # also consider if 'swelling' occurs in any bucket via direct phrase
+            if "dvt" not in kw_hits and any("swelling" in kw for kw in sum(COMPLICATION_KEYWORDS.values(), [])):
+                # simpler check: if 'swelling' substring in notes (already handled by kw_hits earlier but keep safe)
+                if "swelling" in (notes or "").lower() and not _is_negated((notes or "").lower(), "swelling"):
+                    dvt_score += 0.4
+                    evidence.append("nurse note mentions swelling")
+
+    if agg.get("hr_last") is not None:
+        try:
+            if agg["hr_last"] > THRESHOLDS["tachycardia_hr"]:
+                dvt_score += 0.05
+                evidence.append(f"HR {agg['hr_last']} > {THRESHOLDS['tachycardia_hr']}")
+        except Exception:
+            pass
+
     if dvt_score >= 0.5:
         flags["dvt"] = {"score": round(dvt_score,2), "evidence": evidence, "severity": "high" if dvt_score>0.75 else "moderate"}
 
     # Infection / sepsis heuristic
     inf_score = 0.0
-    inf_evidence = []
-    if agg.get("temp_max") and agg["temp_max"] >= THRESHOLDS["fever_temp"]:
-        inf_score += 0.5
-        inf_evidence.append(f"Temp {agg['temp_max']}°C >= {THRESHOLDS['fever_temp']}")
-    if agg.get("hr_max") and agg["hr_max"] >= THRESHOLDS["tachycardia_hr"]:
-        inf_score += 0.2
-        inf_evidence.append(f"HR {agg['hr_max']} >= {THRESHOLDS['tachycardia_hr']}")
+    inf_evidence: List[str] = []
+    try:
+        if agg.get("temp_max") is not None and agg["temp_max"] >= THRESHOLDS["fever_temp"]:
+            inf_score += 0.5
+            inf_evidence.append(f"Temp {agg['temp_max']}°C >= {THRESHOLDS['fever_temp']}")
+    except Exception:
+        pass
+    try:
+        if agg.get("hr_max") is not None and agg["hr_max"] >= THRESHOLDS["tachycardia_hr"]:
+            inf_score += 0.2
+            inf_evidence.append(f"HR {agg['hr_max']} >= {THRESHOLDS['tachycardia_hr']}")
+    except Exception:
+        pass
     if "infection" in kw_hits:
         inf_score += 0.4
         inf_evidence.append("nurse note indicates infection keywords")
@@ -124,10 +244,13 @@ def detect_complications_from_vitals_and_notes(vitals: List[Dict[str,Any]], note
 
     # Respiratory / hypoxia
     resp_score = 0.0
-    resp_evidence = []
-    if agg.get("spo2_last") is not None and agg["spo2_last"] < THRESHOLDS["hypoxia_spo2"]:
-        resp_score += 0.6
-        resp_evidence.append(f"SpO2 {agg['spo2_last']}% < {THRESHOLDS['hypoxia_spo2']}%")
+    resp_evidence: List[str] = []
+    try:
+        if agg.get("spo2_last") is not None and agg["spo2_last"] < THRESHOLDS["hypoxia_spo2"]:
+            resp_score += 0.6
+            resp_evidence.append(f"SpO2 {agg['spo2_last']}% < {THRESHOLDS['hypoxia_spo2']}%")
+    except Exception:
+        pass
     if "respiratory" in kw_hits:
         resp_score += 0.3
         resp_evidence.append("nurse note respiratory keywords")
@@ -136,7 +259,7 @@ def detect_complications_from_vitals_and_notes(vitals: List[Dict[str,Any]], note
 
     # bleeding
     bleed_score = 0.0
-    bleed_evidence = []
+    bleed_evidence: List[str] = []
     if "bleeding" in kw_hits:
         bleed_score += 0.7
         bleed_evidence.append("nurse note mentions bleeding/hematoma")
