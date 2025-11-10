@@ -176,6 +176,21 @@ if submitted:
         st.write("**Patient Checklist:**")
         for item in preop_out["patient_checklist"]:
             st.markdown(f"- {item}")
+            # create / reuse a session patient id
+patient_id = st.session_state.get("last_patient_id") or make_patient_id()
+st.session_state["last_patient_id"] = patient_id
+
+# Save the event (Module 1 + preop recommender)
+try:
+    add_patient_record(patient_id=patient_id,
+                       patient_data=patient_data,
+                       risk_output=risk_output,
+                       preop_out=preop_out,
+                       alerts=[],
+                       recovery_plan={})
+    st.info(f"Saved patient event to DB: {patient_id}")
+except Exception as e:
+    st.error(f"Failed to save patient to DB: {e}")
 
 # -------------------------
 # Monitoring UI (Module 2) — works whether or not Predict Risk just ran
@@ -353,7 +368,189 @@ if run_monitor:
                 with open(save_path, "w", encoding="utf-8") as f:
                     json.dump({"patient_id": "demo_patient_001", "plan": updated_plan, "detected": detect_out}, f, indent=2)
                 st.success(f"Saved updated plan to {save_path}")
+                # ensure patient_id (use last saved patient in this session)
+patient_id = st.session_state.get("last_patient_id") or make_patient_id()
+st.session_state["last_patient_id"] = patient_id
+
+try:
+    update_patient_with_monitoring(patient_id=patient_id, alerts=alerts, recovery_plan=updated_plan, detect_out=detect_out)
+    st.info(f"Monitoring event appended to patient {patient_id}")
+except Exception as e:
+    st.error(f"Failed to append monitoring event to DB: {e}")
 
     except Exception as e:
         st.error(f"⚠️ Error while running detector: {e}")
         print("Detector error:", e)
+        # ---------- Patient DB helpers & Dashboard UI ----------
+from typing import Dict, Any, List
+from datetime import datetime
+
+PATIENT_DB_PATH = "patients_db.json"
+os.makedirs(os.path.dirname(PATIENT_DB_PATH) or ".", exist_ok=True)
+
+def load_patient_db() -> List[Dict[str,Any]]:
+    if not os.path.exists(PATIENT_DB_PATH):
+        return []
+    try:
+        with open(PATIENT_DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_patient_db(db: List[Dict[str,Any]]):
+    with open(PATIENT_DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, indent=2, default=str)
+
+def make_patient_id() -> str:
+    stamp = int(datetime.utcnow().timestamp())
+    return f"patient_{stamp}"
+
+def add_patient_record(patient_id: str,
+                       patient_data: Dict[str,Any],
+                       risk_output: Dict[str,Any],
+                       preop_out: Dict[str,Any] = None,
+                       alerts: List[Dict[str,Any]] = None,
+                       recovery_plan: Dict[str,Any] = None):
+    db = load_patient_db()
+    rec = next((r for r in db if r.get("patient_id") == patient_id), None)
+    now = datetime.utcnow().isoformat()
+    event = {
+        "timestamp": now,
+        "patient_data": patient_data,
+        "risk_output": risk_output,
+        "preop_out": preop_out or {},
+        "alerts": alerts or [],
+        "recovery_plan": recovery_plan or {}
+    }
+    if rec is None:
+        db.append({
+            "patient_id": patient_id,
+            "created_at": now,
+            "last_updated": now,
+            "events": [event]
+        })
+    else:
+        rec.setdefault("events", []).append(event)
+        rec["last_updated"] = now
+    save_patient_db(db)
+    return True
+
+def update_patient_with_monitoring(patient_id: str, alerts: List[Dict[str,Any]], recovery_plan: Dict[str,Any], detect_out: Dict[str,Any]=None):
+    db = load_patient_db()
+    rec = next((r for r in db if r.get("patient_id") == patient_id), None)
+    now = datetime.utcnow().isoformat()
+    event = {
+        "timestamp": now,
+        "monitoring": {
+            "alerts": alerts or [],
+            "recovery_plan": recovery_plan or {},
+            "detector_output": detect_out or {}
+        }
+    }
+    if rec is None:
+        db.append({
+            "patient_id": patient_id,
+            "created_at": now,
+            "last_updated": now,
+            "events": [event]
+        })
+    else:
+        rec.setdefault("events", []).append(event)
+        rec["last_updated"] = now
+    save_patient_db(db)
+    return True
+
+# ---------------- Dashboard UI ----------------
+def patient_dashboard_ui():
+    st.markdown("---")
+    st.header("📋 Patient Dashboard")
+
+    db = load_patient_db()
+    if not db:
+        st.info("No patient records yet. Records are created when you run 'Predict Risk' or save a recovery plan.")
+        return
+
+    db_sorted = sorted(db, key=lambda r: r.get("last_updated", ""), reverse=True)
+
+    cols = st.columns([2,1,1])
+    with cols[0]:
+        st.markdown("**Patient ID**")
+    with cols[1]:
+        st.markdown("**Created**")
+    with cols[2]:
+        st.markdown("**Last updated**")
+
+    for r in db_sorted:
+        c1, c2, c3 = st.columns([2,1,1])
+        with c1:
+            if st.button(r["patient_id"], key=f"open_{r['patient_id']}"):
+                st.session_state["_selected_patient"] = r["patient_id"]
+        with c2:
+            st.write(r.get("created_at", ""))
+        with c3:
+            st.write(r.get("last_updated", ""))
+
+    selected = st.session_state.get("_selected_patient", None)
+    if not selected:
+        st.info("Click a Patient ID above to view full record.")
+        return
+
+    patient_rec = next((x for x in db if x["patient_id"] == selected), None)
+    if not patient_rec:
+        st.error("Selected patient not found in DB.")
+        return
+
+    st.markdown(f"### Patient: `{patient_rec['patient_id']}`")
+    st.write(f"Created: {patient_rec.get('created_at')}  —  Last updated: {patient_rec.get('last_updated')}")
+
+    for ev in patient_rec.get("events", []):
+        st.markdown(f"**Event @ {ev.get('timestamp', '')}**")
+        if ev.get("risk_output"):
+            ro = ev["risk_output"]
+            st.write("**Risk Output**:")
+            st.write(f"- Predicted: **{ro.get('predicted', '')}**  (confidence: {ro.get('confidence')})")
+        if ev.get("patient_data"):
+            pdemo = ev["patient_data"].get("demographics", {})
+            st.write("**Demographics**:", f"age={pdemo.get('age')}, sex={pdemo.get('sex')}, bmi={pdemo.get('bmi')}")
+            st.write("**Surgery**:", ev["patient_data"].get("surgery", {}))
+        if ev.get("preop_out"):
+            po = ev["preop_out"]
+            if po.get("doctor_recommendations_detailed"):
+                st.write("**Clinician recommendations (pre-op):**")
+                for r in po.get("doctor_recommendations_detailed", []):
+                    st.write(f"- {r.get('text')}")
+            if po.get("patient_checklist"):
+                st.write("**Patient checklist (pre-op):**")
+                for it in po.get("patient_checklist", []):
+                    st.write(f"- {it}")
+        if ev.get("alerts"):
+            st.write("**Alerts**:")
+            for a in ev.get("alerts", []):
+                st.write(f"- {a.get('flag', '').upper()} ({a.get('severity', '')}) — {a.get('recommended_action', '')}")
+                if a.get("evidence"):
+                    with st.expander("Evidence"):
+                        for e in a["evidence"]:
+                            st.write(f"• {e}")
+        if ev.get("monitoring"):
+            mon = ev["monitoring"]
+            if mon.get("alerts"):
+                st.write("**Monitoring Alerts**:")
+                for a in mon["alerts"]:
+                    st.write(f"- {a.get('flag', '').upper()} ({a.get('severity')}) — {a.get('recommended_action')}")
+            if mon.get("recovery_plan"):
+                st.write("**Recovery plan snapshot:**")
+                for d in sorted(mon["recovery_plan"].keys()):
+                    st.write(f"- {d}:")
+                    for item in mon["recovery_plan"][d]:
+                        st.write(f"    - {item}")
+            if mon.get("detector_output"):
+                with st.expander("View raw detector output (toggle)"):
+                    st.json(mon["detector_output"])
+
+    st.markdown("---")
+    st.download_button(
+        label="📥 Download full patient record (JSON)",
+        data=json.dumps(patient_rec, indent=2, default=str),
+        file_name=f"{patient_rec['patient_id']}.json",
+        mime="application/json"
+    )
