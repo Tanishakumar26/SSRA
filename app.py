@@ -186,13 +186,35 @@ with st.form("monitor_form"):
     nurse_notes = st.text_area("Nurse notes (free text)", value="", height=100)
     run_monitor = st.form_submit_button("Run complication detector")
 
-if run_monitor:
-    # parse vitals
+import re
+
+def parse_vitals_input(text: str):
+    """
+    Try to parse vitals JSON; if not JSON, extract key values from text (regex fallback).
+    """
+    if not text or not text.strip():
+        return []
     try:
-        vitals = json.loads(vitals_json) if vitals_json.strip() else []
-    except Exception as e:
-        st.error(f"Invalid vitals JSON: {e}")
-        vitals = []
+        # Try to parse as JSON first
+        return json.loads(text)
+    except Exception:
+        # Regex fallback for free-text vitals like "Temp 100.8, HR 105, SpO2 91, D-dimer 1.2"
+        text = text.lower()
+        parsed = {"timestamp": "manual_entry"}
+        patterns = {
+            "hr": r"hr[:\s]*([0-9]{2,3})",
+            "temp": r"temp(?:erature)?[:\s]*([0-9]{2,3}\.?[0-9]*)",
+            "spo2": r"spo2[:\s]*([0-9]{2,3})",
+            "ddimer": r"d[-\s]*dimer[:\s]*([0-9.]+)"
+        }
+        for key, pat in patterns.items():
+            match = re.search(pat, text)
+            if match:
+                parsed[key] = float(match.group(1))
+        return [parsed] if len(parsed) > 1 else []  # return empty if nothing extracted
+
+# Use parser
+vitals = parse_vitals_input(vitals_json)
 
     # call detector
     detect_out = detect_complications_from_vitals_and_notes(vitals=vitals, notes=nurse_notes, extra_labs={})
