@@ -1,15 +1,32 @@
+# app.py - SSRA (combined risk prediction + preop recommender + monitoring)
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import json
+import os
+import re
+import datetime
 
-# Load artifacts
+# Local modules
+from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
+
+# Load artifacts (make sure filenames match repo)
 preprocessor = joblib.load("ssra_preprocessor.pkl")
 model = joblib.load("ssra_xgb_model.pkl")
 
-st.title("🩺 SSRA - Surgical Risk Prediction")
+# Initialize session_state keys (optional nice-to-have)
+if "patient_data" not in st.session_state:
+    st.session_state["patient_data"] = None
+if "risk_output" not in st.session_state:
+    st.session_state["risk_output"] = None
 
-# Input form
+st.set_page_config(page_title="SSRA — Surgical Risk & Preop", layout="wide")
+st.title("🩺 SSRA - Surgical Risk Prediction & Pre-op Recommendations")
+
+# -------------------------
+# Patient input form (Module 1)
+# -------------------------
 with st.form("patient_form"):
     col1, col2 = st.columns(2)
     with col1:
@@ -27,9 +44,12 @@ with st.form("patient_form"):
         hypertension = st.selectbox("Hypertension", [0, 1])
         cardiac_history = st.selectbox("Cardiac History", [0, 1])
         emergency = st.selectbox("Emergency Surgery", [0, 1])
-    
+
     submitted = st.form_submit_button("Predict Risk")
 
+# -------------------------
+# If user submitted the risk form
+# -------------------------
 if submitted:
     # Build DataFrame in same format as training
     input_df = pd.DataFrame([{
@@ -48,12 +68,21 @@ if submitted:
         "Surgery_Type": surgery_type
     }])
 
-    # Preprocess input
-    X_input = preprocessor.transform(input_df)
+    # Preprocess input (may raise if preprocessor mismatch)
+    try:
+        X_input = preprocessor.transform(input_df)
+    except Exception as e:
+        st.error(f"Preprocessor transform failed: {e}")
+        st.stop()
 
     # Predict
-    proba = model.predict_proba(X_input)[0]
-    pred = int(np.argmax(proba))
+    try:
+        proba = model.predict_proba(X_input)[0]
+        pred = int(np.argmax(proba))
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
+        proba = [0.0, 0.0, 0.0]
+        pred = 0
 
     risk_map = {0: "Low Risk", 1: "Moderate Risk", 2: "High Risk"}
 
@@ -66,38 +95,35 @@ if submitted:
         "Moderate Risk (1)": [round(proba[1], 3)],
         "High Risk (2)": [round(proba[2], 3)]
     })
-    # --- Load pre-op recommender ---
-    # --- Load pre-op recommender & Postop monitoring (inside submitted block) ---
-    import json, os, datetime
-    # Try import (will show UI error if missing)
-    try:
-        from preop_recommender import load_kb, generate_recommendations
-        print("✅ preop_recommender imported OK")
-        KB = load_kb("knowledge_base.json")
-        print(f"✅ Knowledge base loaded: {len(KB)} rules")
-    except Exception as e:
-        st.error("Failed to import or load Pre-Op recommender. Check console logs.")
-        print("❌ Error while importing/loading KB:", e)
-        KB = []
 
-    # === Robust prediction safety & risk_output build ===
-    # (ensures pred/proba exist even if model prediction failed)
+    # Build canonical patient_data & risk_output
     try:
-        # proba and pred already computed above in normal flow; if not, try to compute again
-        if 'proba' not in globals() or 'pred' not in globals():
-            if 'model' in globals() and 'X_input' in locals():
-                proba = model.predict_proba(X_input)[0]
-                pred = int(np.argmax(proba))
+        patient_data = {
+            "demographics": {"age": int(age), "sex": str(sex), "bmi": float(bmi)},
+            "comorbidities": {
+                "diabetes": bool(diabetes),
+                "hypertension": bool(hypertension),
+                "pci_stent": False
+            },
+            "medications": {
+                "warfarin": False,
+                "antiplatelet": False,
+                "insulin": bool(diabetes)
+            },
+            "labs": {"hba1c": None, "hb": float(hb), "creatinine": float(creatinine)},
+            "lifestyle": {"smoker": bool(smoking), "alcohol_units_week": 0},
+            "surgery": {
+                "type": str(surgery_type).lower() if surgery_type else "",
+                "subtype": "",
+                "urgency": "emergency" if int(emergency) == 1 else "elective"
+            }
+        }
     except Exception as e:
-        print("Warning: prediction compute failed:", e)
-        proba = proba if 'proba' in globals() and proba is not None else [0.0, 0.0, 0.0]
-        pred = pred if 'pred' in globals() and pred is not None else 0
-
-    # Final defensive defaults
-    if 'proba' not in globals() or proba is None:
-        proba = [0.0, 0.0, 0.0]
-    if 'pred' not in globals() or pred is None:
-        pred = 0
+        st.error(f"Failed to build patient_data: {e}")
+        patient_data = {
+            "demographics": {"age": None, "sex": "", "bmi": None},
+            "comorbidities": {}, "medications": {}, "labs": {}, "lifestyle": {}, "surgery": {}
+        }
 
     _pred_label = "low" if int(pred) == 0 else ("moderate" if int(pred) == 1 else "high")
     risk_output = {
@@ -106,29 +132,20 @@ if submitted:
         "confidence": float(max(proba)) if hasattr(proba, "__iter__") else float(proba)
     }
 
-    # Build patient_data (use same inputs from the form)
-    patient_data = {
-        "demographics": {"age": int(age), "sex": str(sex), "bmi": float(bmi)},
-        "comorbidities": {
-            "diabetes": bool(diabetes),
-            "hypertension": bool(hypertension),
-            "pci_stent": False
-        },
-        "medications": {
-            "warfarin": False,
-            "antiplatelet": False,
-            "insulin": bool(diabetes)
-        },
-        "labs": {"hba1c": None, "hb": float(hb), "creatinine": float(creatinine)},
-        "lifestyle": {"smoker": bool(smoking), "alcohol_units_week": 0},
-        "surgery": {
-            "type": str(surgery_type).lower() if surgery_type else "",
-            "subtype": "",
-            "urgency": "emergency" if int(emergency) == 1 else "elective"
-        }
-    }
+    # Persist to session_state so monitoring and other modules can reuse
+    st.session_state["patient_data"] = patient_data
+    st.session_state["risk_output"] = risk_output
 
-    # Run recommender (safe even if KB is empty)
+    # --- Load pre-op recommender (safe) ---
+    try:
+        from preop_recommender import load_kb, generate_recommendations
+        KB = load_kb("knowledge_base.json")
+    except Exception as e:
+        st.error("Failed to import or load Pre-Op recommender. Check console logs.")
+        print("❌ Error while importing/loading KB:", e)
+        KB = []
+
+    # Run recommender (safe)
     try:
         preop_out = generate_recommendations(patient_data, risk_output, KB)
     except Exception as e:
@@ -160,20 +177,14 @@ if submitted:
         for item in preop_out["patient_checklist"]:
             st.markdown(f"- {item}")
 
-   # ---------- Streamlit monitoring UI: Step 3/4/5 ----------
-# ---------- Streamlit monitoring UI: Step 3/4/5 (REPLACE ENTIRE MONITORING BLOCK WITH THIS) ----------
-import json
-import os
-import re
-import datetime
-from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
-
+# -------------------------
+# Monitoring UI (Module 2) — works whether or not Predict Risk just ran
+# -------------------------
 ALERT_DIR = "preop_alerts"
 os.makedirs(ALERT_DIR, exist_ok=True)
 
 st.markdown("## Real-time Post-op Monitoring & Alerts (Steps 3–5)")
 
-# Monitoring form (separate from patient_form)
 with st.form("monitor_form"):
     vitals_json = st.text_area(
         "Paste recent vitals time-series JSON (list of records with timestamp, hr, temp, spo2, ddimer) OR paste free text like 'HR 105, Temp 100.8, D-dimer 1.2'",
@@ -183,10 +194,7 @@ with st.form("monitor_form"):
     run_monitor = st.form_submit_button("Run complication detector")
 
 def _parse_vitals_input(text: str):
-    """
-    Try to parse vitals JSON; if not JSON, extract key values from free text using regex.
-    Returns a list of vitals dicts or empty list.
-    """
+    """Try parse JSON; else extract vitals from free text using regex. Return list of dicts."""
     if not text or not text.strip():
         return []
     try:
@@ -216,17 +224,67 @@ def _parse_vitals_input(text: str):
 
 if run_monitor:
     try:
-        # parse vitals input (JSON or free text)
+        # Parse vitals (JSON or free text)
         vitals = _parse_vitals_input(vitals_json)
 
-        # call detector
-        detect_out = detect_complications_from_vitals_and_notes(
-            vitals=vitals,
-            notes=nurse_notes,
-            extra_labs={}
-        )
+        # Determine patient_data and risk_output (prefer session_state)
+        if "patient_data" in st.session_state and st.session_state["patient_data"]:
+            patient_data = st.session_state["patient_data"]
+        else:
+            # if module-1 not run, try to build minimal patient_data from any local variables
+            try:
+                patient_data = {
+                    "demographics": {
+                        "age": int(age) if 'age' in locals() else None,
+                        "sex": str(sex) if 'sex' in locals() else "",
+                        "bmi": float(bmi) if 'bmi' in locals() else None
+                    },
+                    "comorbidities": {
+                        "diabetes": bool(diabetes) if 'diabetes' in locals() else False,
+                        "hypertension": bool(hypertension) if 'hypertension' in locals() else False
+                    },
+                    "medications": {
+                        "warfarin": False,
+                        "antiplatelet": False,
+                        "insulin": bool(diabetes) if 'diabetes' in locals() else False
+                    },
+                    "labs": {
+                        "hba1c": None,
+                        "hb": float(hb) if 'hb' in locals() else None,
+                        "creatinine": float(creatinine) if 'creatinine' in locals() else None
+                    },
+                    "lifestyle": {
+                        "smoker": bool(smoking) if 'smoking' in locals() else False,
+                        "alcohol_units_week": 0
+                    },
+                    "surgery": {
+                        "type": str(surgery_type).lower() if 'surgery_type' in locals() else "",
+                        "subtype": "",
+                        "urgency": "emergency" if ('emergency' in locals() and int(emergency) == 1) else "elective"
+                    }
+                }
+            except Exception:
+                patient_data = {"demographics": {"age": None, "sex": "", "bmi": None}, "comorbidities": {}, "medications": {}, "labs": {}, "lifestyle": {}, "surgery": {}}
 
-        # build alerts list and persist to disk
+        if "risk_output" in st.session_state and st.session_state["risk_output"]:
+            risk_output = st.session_state["risk_output"]
+        else:
+            # fallback: try to infer from locals or default to low
+            try:
+                if 'pred' in locals():
+                    _pred_label = "low" if int(pred) == 0 else ("moderate" if int(pred) == 1 else "high")
+                elif 'proba' in locals():
+                    _pred_label = "low" if int(np.argmax(proba)) == 0 else ("moderate" if int(np.argmax(proba)) == 1 else "high")
+                else:
+                    _pred_label = "low"
+                risk_output = {"predicted": _pred_label, "domain": "general", "confidence": float(max(proba)) if 'proba' in locals() else 0.0}
+            except Exception:
+                risk_output = {"predicted": "low", "domain": "general", "confidence": 0.0}
+
+        # Call detector
+        detect_out = detect_complications_from_vitals_and_notes(vitals=vitals, notes=nurse_notes, extra_labs={})
+
+        # Build alerts and persist
         alerts = []
         for flag, details in detect_out.get("flags", {}).items():
             if details.get("score", 0) >= 0.5:
@@ -236,7 +294,7 @@ if run_monitor:
                 with open(alert_path, "w", encoding="utf-8") as f:
                     json.dump(alert, f, indent=2)
 
-        # --- Simplified clinician UI (no raw JSON, no interactive ack/escalate buttons) ---
+        # Simplified clinician UI (no raw JSON dump)
         st.markdown("### 🩺 Monitoring Summary")
         flags = detect_out.get("flags", {})
 
@@ -247,15 +305,18 @@ if run_monitor:
             st.warning(f"⚠️ {len(flags)} potential complication(s) detected. Review required.")
             for flag, details in flags.items():
                 sev = details.get("severity", "moderate").capitalize()
+                # detector may include recommended_action (but if not, choose a generic text)
                 action_text = details.get("recommended_action", "Review patient condition.")
+                # evidence may be a list of strings
                 evidence = details.get("evidence", [])
+                # show concise line
                 st.markdown(f"**{flag.upper()} ({sev})** — {action_text}")
                 if evidence:
                     with st.expander("💡 View supporting evidence"):
                         for e in evidence:
                             st.write(f"• {e}")
 
-        # show persisted alerts summary (compact)
+        # Show alerts summary persisted
         if alerts:
             st.success(f"{len(alerts)} alert(s) generated; saved to {ALERT_DIR}")
             for a in alerts:
@@ -266,31 +327,13 @@ if run_monitor:
                         st.write(f"• {ev}")
                 st.caption(f"Alert ID: {a['alert_id']} — generated at {a.get('timestamp')}")
 
-        # ---- Defensive risk_output fallback (avoid NameError) ----
-        if 'risk_output' not in locals() and 'risk_output' not in globals():
-            try:
-                if 'pred' in locals():
-                    _pred_label = "low" if int(pred) == 0 else ("moderate" if int(pred) == 1 else "high")
-                elif 'proba' in locals():
-                    try:
-                        import numpy as _np
-                        _pred_label = "low" if int(_np.argmax(proba)) == 0 else ("moderate" if int(_np.argmax(proba)) == 1 else "high")
-                    except Exception:
-                        _pred_label = "low"
-                else:
-                    _pred_label = "low"
-                risk_output = {
-                    "predicted": _pred_label,
-                    "domain": "general",
-                    "confidence": float(max(proba)) if 'proba' in locals() else 0.0
-                }
-            except Exception:
-                risk_output = {"predicted": "low", "domain": "general", "confidence": 0.0}
-
-        # ---- Update recovery plan using detected flags ----
-        existing_plan = {}  # in production load current care plan for the patient
+        # Update recovery plan (uses patient_data and risk_output)
+        existing_plan = {}  # in prod, load current plan for patient
         try:
-            updated_plan = update_recovery_plan(existing_plan, detect_out.get("flags", {}), risk_output, surgery_type=patient_data.get("surgery", {}).get("type", ""))
+            surg_type = ""
+            if isinstance(patient_data, dict):
+                surg_type = patient_data.get("surgery", {}).get("type", "")
+            updated_plan = update_recovery_plan(existing_plan, detect_out.get("flags", {}), risk_output, surgery_type=surg_type)
         except Exception as e:
             st.error(f"Error updating recovery plan: {e}")
             print("update_recovery_plan error:", e)
@@ -308,7 +351,7 @@ if run_monitor:
             if st.button("Save updated recovery plan (simulate)"):
                 save_path = os.path.join(ALERT_DIR, f"recovery_plan_{int(datetime.datetime.utcnow().timestamp())}.json")
                 with open(save_path, "w", encoding="utf-8") as f:
-                    json.dump({"patient_id":"demo_patient_001","plan":updated_plan,"detected":detect_out}, f, indent=2)
+                    json.dump({"patient_id": "demo_patient_001", "plan": updated_plan, "detected": detect_out}, f, indent=2)
                 st.success(f"Saved updated plan to {save_path}")
 
     except Exception as e:
