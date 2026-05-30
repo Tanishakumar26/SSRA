@@ -1,3 +1,15 @@
+<p align="center">
+  <img src="assets/ssra-banner.png" alt="SSRA Banner" width="100%">
+</p>
+
+# 🏥 Smart Surgical Recovery Assistant (SSRA)
+
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![XGBoost](https://img.shields.io/badge/Model-XGBoost-green)
+![Healthcare AI](https://img.shields.io/badge/Domain-Healthcare%20AI-red)
+![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-orange)
+
+> **AI-powered surgical risk prediction and personalized post-operative recovery monitoring system**
 🏥 Smart Surgical Recovery Assistant (SSRA)
 
 AI-powered surgical risk prediction and personalized post-operative recovery monitoring system
