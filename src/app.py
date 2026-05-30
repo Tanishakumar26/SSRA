@@ -8,10 +8,19 @@ import os
 import re
 import datetime
 from typing import Dict, Any, List
+# ---------------- Base Paths ----------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_DIR = os.path.join(BASE_DIR, "..", "models")
+DATA_DIR = os.path.join(BASE_DIR, "..", "data")
 
 # Local detector/recommender modules
 # postop_monitoring must exist in repo
-from postop_monitoring import detect_complications_from_vitals_and_notes, create_alert, update_recovery_plan
+from src.postop_monitoring import (
+    detect_complications_from_vitals_and_notes,
+    create_alert,
+    update_recovery_plan
+)
 
 # ---------------- Config ----------------
 PATIENT_DB_PATH = "patients_db.json"
@@ -377,7 +386,10 @@ if submitted:
 
         # Try to load KB and run preop recommender (optional)
         try:
-            from preop_recommender import load_kb, generate_recommendations
+              from src.preop_recommender import (
+               load_kb,
+               generate_recommendations
+               )
             KB = load_kb("knowledge_base.json")
         except Exception:
             KB = []
